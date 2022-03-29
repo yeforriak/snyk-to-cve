@@ -12,25 +12,31 @@ import (
 )
 
 func main() {
-	f, err := os.Open("snyk-output.txt")
-	if err != nil {
+	if len(os.Args[1:]) != 1 {
+		fmt.Println("Usage: ./snyk-cve <snyk-output>")
+		os.Exit(1)
 	}
 
+	f, err := os.Open(os.Args[1])
+	if err != nil {
+	}
 	defer f.Close()
 
 	snykVulns := getSnykVulns(bufio.NewScanner(f))
-	cves := getCVEsFrom(snykVulns)
-	fmt.Println(cves)
 
+	requests := make(chan string)
+	go attachCVEs(requests)
+
+	for _, v := range snykVulns {
+		requests <- v
+	}
+	close(requests)
 }
 
-func getCVEsFrom(snykVulns []string) []string {
-	var cves []string
-	for _, snykVuln := range snykVulns {
-		cves = append(cves, getCVEFrom(snykVuln))
+func attachCVEs(requests chan string) {
+	for job := range requests {
+		fmt.Printf("%s -> %s\n", job, getCVEFrom(job))
 	}
-
-	return cves
 }
 func getCVEFrom(snykVuln string) string {
 	resp, err := http.Get(snykVuln)
@@ -60,8 +66,4 @@ func getSnykVulns(scanner *bufio.Scanner) []string {
 	}
 
 	return snykVulns
-}
-
-func printSlice(s []string) {
-	fmt.Printf("len=%d cap=%d %v\n", len(s), cap(s), s)
 }
